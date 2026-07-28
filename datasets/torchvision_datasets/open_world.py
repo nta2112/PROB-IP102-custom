@@ -161,9 +161,9 @@ class OWDetection(VisionDataset):
                     if cls in VOC_CLASS_NAMES_COCOFIED:
                         cls = BASE_VOC_CLASS_NAMES[VOC_CLASS_NAMES_COCOFIED.index(cls)]
                     
-                    if self.CLASS_NAMES.index(cls) in valid_classes:
+                    if self.get_class_index(cls) in valid_classes:
                         instance = dict(
-                            category_id=self.CLASS_NAMES.index(cls),
+                            category_id=self.get_class_index(cls),
                         )
                         instances.append(instance)
                 if len(instances)>0:
@@ -215,6 +215,19 @@ class OWDetection(VisionDataset):
                 return x
             return x[:4] + '_' + x[4:]
 
+    def get_class_index(self, cls):
+        try:
+            return self.CLASS_NAMES.index(cls)
+        except ValueError:
+            if isinstance(cls, str) and cls.isdigit():
+                return int(cls)
+            # Try normalization
+            norm_names = [n.lower().replace('_', ' ').strip() for n in self.CLASS_NAMES]
+            norm_cls = str(cls).lower().replace('_', ' ').strip()
+            if norm_cls in norm_names:
+                return norm_names.index(norm_cls)
+            raise ValueError(f"Class '{cls}' not found in CLASS_NAMES. Available classes: {self.CLASS_NAMES}")
+
     @functools.lru_cache(maxsize=None)
     def load_instances(self, img_id):
         tree = ET.parse(self.imgid2annotations[img_id])
@@ -231,7 +244,7 @@ class OWDetection(VisionDataset):
             bbox[0] -= 1.0
             bbox[1] -= 1.0
             instance = dict(
-                category_id=self.CLASS_NAMES.index(cls),
+                category_id=self.get_class_index(cls),
                 bbox=bbox,
                 area=(bbox[2] - bbox[0]) * (bbox[3] - bbox[1]),
                 image_id=img_id
