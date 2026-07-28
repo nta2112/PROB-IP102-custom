@@ -269,7 +269,17 @@ def main(args):
         print('Initialized from the pre-training model')
         checkpoint = torch.load(args.pretrain, map_location='cpu')
         state_dict = checkpoint['model']
-        msg = model_without_ddp.load_state_dict(state_dict, strict=False)
+        model_state_dict = model_without_ddp.state_dict()
+        filtered_state_dict = {}
+        for k, v in state_dict.items():
+            if k in model_state_dict:
+                if v.shape == model_state_dict[k].shape:
+                    filtered_state_dict[k] = v
+                else:
+                    print(f'Skipping parameter {k} due to shape mismatch: checkpoint={v.shape}, model={model_state_dict[k].shape}')
+            else:
+                filtered_state_dict[k] = v
+        msg = model_without_ddp.load_state_dict(filtered_state_dict, strict=False)
         print(msg)
         args.start_epoch = checkpoint['epoch'] + 1
         if args.eval:
