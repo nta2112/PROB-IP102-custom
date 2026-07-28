@@ -189,11 +189,25 @@ class OWDetection(VisionDataset):
                                                                                    self.annotations, self.imgids])
         assert (len(self.images) == len(self.annotations) == len(self.imgids))
 
+    _str_to_int = {}
+    _int_to_str = {}
+
     @staticmethod
     def convert_image_id(img_id, to_integer=False, to_string=False, prefix='2021'):
         if to_integer:
-            return int(prefix + img_id.replace('_', ''))
+            try:
+                return int(prefix + img_id.replace('_', ''))
+            except ValueError:
+                if img_id not in OWDetection._str_to_int:
+                    import hashlib
+                    h = hashlib.md5(img_id.encode('utf-8')).hexdigest()
+                    val = int(h[:15], 16)
+                    OWDetection._str_to_int[img_id] = val
+                    OWDetection._int_to_str[val] = img_id
+                return OWDetection._str_to_int[img_id]
         if to_string:
+            if img_id in OWDetection._int_to_str:
+                return OWDetection._int_to_str[img_id]
             x = str(img_id)
             assert x.startswith(prefix)
             x = x[len(prefix):]
