@@ -102,6 +102,32 @@ VOC_COCO_CLASS_NAMES["VOC2007"] = tuple(itertools.chain(VOC_CLASS_NAMES, T2_CLAS
 
 print(VOC_COCO_CLASS_NAMES)
 
+
+def load_ip102_categories():
+    import json
+    paths_to_try = [
+        '/kaggle/input/datasets/nta212/ip102-for-object-detection/train.json',
+        'data/OWOD/train.json',
+        '../train.json'
+    ]
+    for p in paths_to_try:
+        if os.path.exists(p):
+            with open(p, 'r') as f:
+                data = json.load(f)
+            cats = data.get('categories', [])
+            cats.sort(key=lambda x: x['id'])
+            return cats
+    # Fallback to classes.txt if train.json cannot be found
+    classes_file = '/kaggle/input/datasets/nta212/ip102-for-object-detection/classes.txt'
+    if os.path.exists(classes_file):
+        with open(classes_file, 'r') as f:
+            lines = [line.strip().split(maxsplit=1) for line in f.readlines() if line.strip()]
+        lines.sort(key=lambda x: int(x[0]))
+        return [{'id': int(x[0]), 'name': x[1]} for x in lines]
+    return []
+
+
+
 class OWDetection(VisionDataset):
     """`OWOD in Pascal VOC format <http://host.robots.ox.ac.uk/pascal/VOC/>`_ Detection Dataset.
 
@@ -135,10 +161,18 @@ class OWDetection(VisionDataset):
         self.imgid2annotations = {}
         self.image_set = []
         self.transforms=transforms
-        self.CLASS_NAMES = VOC_COCO_CLASS_NAMES[dataset]
+        self.dataset=dataset
+        if dataset == 'IP102':
+            cats = load_ip102_categories()
+            self.ip102_id_to_idx = {c['id']: idx for idx, c in enumerate(cats)}
+            self.ip102_name_to_idx = {c['name'].lower().replace('_', ' ').strip(): idx for idx, c in enumerate(cats)}
+            self.CLASS_NAMES = tuple([c['name'] for c in cats] + ['unknown'])
+            # Override globally too for eval
+            VOC_COCO_CLASS_NAMES["IP102"] = self.CLASS_NAMES
+        else:
+            self.CLASS_NAMES = VOC_COCO_CLASS_NAMES[dataset]
         self.MAX_NUM_OBJECTS = 64
         self.args = args
-        self.dataset=dataset
 
         self.root=str(root)
         annotation_dir = os.path.join(self.root, 'Annotations')
@@ -216,6 +250,25 @@ class OWDetection(VisionDataset):
             return x[:4] + '_' + x[4:]
 
     def get_class_index(self, cls):
+        if self.dataset == 'IP102':
+            if isinstance(cls, (int, float)):
+                orig_id = int(cls)
+            elif isinstance(cls, str) and cls.isdigit():
+                orig_id = int(cls)
+            else:
+                orig_id = None
+            
+            if orig_id is not None:
+                if orig_id in self.ip102_id_to_idx:
+                    return self.ip102_id_to_idx[orig_id]
+                else:
+                    return 25
+            
+            norm_cls = str(cls).lower().replace('_', ' ').strip()
+            if norm_cls in self.ip102_name_to_idx:
+                return self.ip102_name_to_idx[norm_cls]
+            return 25
+
         try:
             return self.CLASS_NAMES.index(cls)
         except ValueError:
