@@ -438,7 +438,11 @@ def create_ft_dataset(args, image_sorted_scores):
         tmp=np.array(class_sorted_scores[str(i)])
         tmp.sort()
         tmp = torch.Tensor(tmp)
-        if len(tmp)>args.num_inst_per_class and not args.exemplar_replay_random:
+        if len(tmp) == 0:
+            print(f'Warning: No images found in class {i}')
+            max_val = torch.tensor(0.0)
+            min_val = torch.tensor(0.0)
+        elif len(tmp)>args.num_inst_per_class and not args.exemplar_replay_random:
             max_val = tmp[-args.num_inst_per_class//2]
             min_val = tmp[args.num_inst_per_class//2]
         else:
